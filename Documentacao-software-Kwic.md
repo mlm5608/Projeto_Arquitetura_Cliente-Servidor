@@ -386,16 +386,6 @@ Arquitetura **cliente-servidor**, com front-end e back-end desacoplados:
 
 ### 6.2 Diagrama de arquitetura (visão geral)
 
-```mermaid
-flowchart TD
-    A[Cliente Web - React] -->|HTTP/REST + JSON| B[API - Node.js]
-    B --> C[Camada de Rotas]
-    C --> D[Controllers]
-    D --> E[Serviços - Regras de Negócio]
-    E --> F[Camada de Acesso a Dados]
-    F --> G[(Banco de Dados Relacional)]
-```
-
 ### 6.3 Componentes / Módulos
 
 | Componente | Responsabilidade | Tecnologia |
@@ -418,41 +408,6 @@ flowchart TD
 | CI/CD | Não aplicável (projeto acadêmico, execução local) | — |
 
 ### 6.5 Modelo de dados
-
-```mermaid
-erDiagram
-    USUARIO ||--o{ PEDIDO : realiza
-    PRODUTO ||--o{ ITEM_PEDIDO : compoe
-    PEDIDO ||--o{ ITEM_PEDIDO : contem
-    USUARIO {
-        int id
-        string nome
-        string email
-        string senha_hash
-        string perfil "cliente ou administrador"
-    }
-    PRODUTO {
-        int id
-        string nome
-        string descricao
-        decimal preco
-        int estoque
-    }
-    PEDIDO {
-        int id
-        int usuario_id
-        string status "Pendente, Confirmado, Entregue, Cancelado"
-        decimal total
-        datetime data_criacao
-    }
-    ITEM_PEDIDO {
-        int id
-        int pedido_id
-        int produto_id
-        int quantidade
-        decimal preco_unitario
-    }
-```
 
 ### 6.6 Decisões de arquitetura (ADR resumido)
 
@@ -580,7 +535,11 @@ Testes **manuais**, executados pelo grupo a cada alteração relevante no back-e
 
 ---
 
-## 10. Anexos e Referências
+## 10.Diagramas
+
+---
+
+## 11. Anexos e Referências
 
 - Link para protótipos / wireframes: *(a preencher)*
 - Link para repositório de código: *(a preencher)*
