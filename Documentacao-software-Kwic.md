@@ -4,7 +4,7 @@
 |---|---|
 | **Versão do documento** | 1.0 |
 | **Data** | 18/09/2026 |
-| **Autor(es)** | Miguel Moreira |
+| **Autor(es)** | Miguel Moreira | Henrique Gonzalez Cruz
 | **Status** | Rascunho |
 | **Aprovado por** | *(a preencher — professor/avaliador da disciplina)* |
 
@@ -537,7 +537,278 @@ Testes **manuais**, executados pelo grupo a cada alteração relevante no back-e
 
 ## 10.Diagramas
 
----
+//Camadas
+
+```mermaid
+flowchart TB
+  subgraph CLI["CLIENTE — React (navegador)"]
+    direction TB
+    P["pages"] --> C["components"] --> CS["services<br/>(chamadas à API)"]
+  end
+
+  subgraph SRV["SERVIDOR — Node.js (API REST)"]
+    direction TB
+    R["Camada de Rotas<br/>routes"]
+    M["Middlewares<br/>autenticação JWT + perfil"]
+    CT["Camada de Controllers<br/>controllers"]
+    SV["Camada de Serviços / Regras de Negócio<br/>services — RN-02 a RN-08<br/>Autenticação • Pagamento simulado"]
+    RP["Camada de Acesso a Dados<br/>models / repositories"]
+    R --> M --> CT --> SV --> RP
+  end
+
+  DB[("Banco de Dados Relacional<br/>PostgreSQL / MySQL")]
+
+  CS -- "HTTP / JSON (REST)" --> R
+  RP -- "SQL" --> DB
+```
+
+//Sequencia
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as Cliente
+  participant F as Front-end (React)
+  participant A as authMiddleware
+  participant C as PedidoController
+  participant S as PedidoService
+  participant PG as PagamentoSimulado
+  participant DB as Banco de Dados
+
+  U->>F: confirma carrinho e avança para o checkout
+  F->>A: POST /pedidos (itens + token JWT)
+  A->>A: valida token e perfil "cliente"
+  alt token ausente, inválido ou expirado
+    A-->>F: 401 Não autorizado
+    F-->>U: exibe erro de autenticação
+  else perfil sem permissão
+    A-->>F: 403 Acesso proibido
+  else acesso permitido
+    A->>C: repassa requisição
+    C->>S: finalizarPedido(clienteId, itens)
+    S->>DB: busca produtos (preço atual e estoque)
+    DB-->>S: produtos
+    S->>S: calcularTotal(itens) — ignora total enviado pelo cliente (RN-05)
+    alt estoque insuficiente em algum item (RN-02)
+      S-->>C: erro de estoque (item afetado)
+      C-->>F: resposta de erro
+      F-->>U: informa item afetado e pede ajuste do carrinho
+    else estoque suficiente
+      S->>PG: aprovarPagamento(total)
+      PG-->>S: pagamento aprovado (simulado)
+      S->>DB: cria pedido "Pendente" + itens, fixa total (RN-06) e decrementa estoque (RN-03)
+      DB-->>S: pedido criado
+      S-->>C: pedido
+      C-->>F: 201 Pedido criado
+      F->>F: esvazia o carrinho
+      F-->>U: exibe confirmação do pedido
+    end
+  end
+```
+
+//Caso de Uso Mermaid
+
+```mermaid
+flowchart LR
+  U["Usuário"]
+  C["Cliente"]
+  A["Administrador"]
+  C -- "é um" --> U
+  A -- "é um" --> U
+
+  subgraph SISTEMA["Sistema de Pedidos"]
+    direction LR
+    LOGIN(["Autenticar-se<br/>RF-02, RF-11"])
+
+    CAD(["Cadastrar-se<br/>RF-01"])
+    CAT(["Visualizar catálogo<br/>RF-03"])
+    DET(["Visualizar detalhes do produto<br/>RF-04"])
+    ADD(["Adicionar produto ao carrinho<br/>RF-05"])
+    ALT(["Alterar / remover item do carrinho<br/>RF-06"])
+    CAR(["Visualizar carrinho e total<br/>RF-07"])
+    FIN(["Finalizar pedido<br/>RF-08"])
+    HIS(["Consultar histórico e status<br/>RF-09"])
+    CANC(["Cancelar pedido<br/>RF-10"])
+
+    EST(["Validar estoque<br/>RN-02"])
+    TOT(["Calcular total no servidor<br/>RF-17"])
+    PAG(["Efetuar pagamento simulado"])
+    DEV(["Devolver estoque<br/>RN-08"])
+
+    PCAD(["Cadastrar produto<br/>RF-12"])
+    PED(["Editar produto<br/>RF-13"])
+    PREM(["Remover produto<br/>RF-14"])
+    PINA(["Inativar produto"])
+    PEST(["Controlar estoque<br/>RF-15"])
+    PLIS(["Listar pedidos recebidos<br/>RF-16"])
+    PSTA(["Atualizar status do pedido<br/>RF-18"])
+    TRANS(["Validar transição de status<br/>RN-07"])
+  end
+
+  U --- LOGIN
+  C --- CAD & CAT & DET & ADD & ALT & CAR & FIN & HIS & CANC
+  A --- PCAD & PED & PREM & PEST & PLIS & PSTA
+
+  ADD -. "«include»" .-> EST
+  ALT -. "«include»" .-> EST
+  FIN -. "«include»" .-> EST
+  FIN -. "«include»" .-> TOT
+  FIN -. "«include»" .-> PAG
+  CANC -. "«include»" .-> DEV
+  PSTA -. "«include»" .-> TRANS
+  PINA -. "«extend» [produto vinculado a pedidos]" .-> PREM
+```
+
+//Caso de Uso PlantUML
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #333333
+}
+
+actor "Usuário" as U
+actor "Cliente" as C
+actor "Administrador" as A
+U <|-- C
+U <|-- A
+
+rectangle "Sistema de Pedidos" {
+  usecase "Autenticar-se\n(RF-02, RF-11)" as UC_LOGIN
+
+  usecase "Cadastrar-se\n(RF-01)" as UC_CAD
+  usecase "Visualizar catálogo\n(RF-03)" as UC_CAT
+  usecase "Visualizar detalhes\ndo produto (RF-04)" as UC_DET
+  usecase "Adicionar produto\nao carrinho (RF-05)" as UC_ADD
+  usecase "Alterar / remover item\ndo carrinho (RF-06)" as UC_ALT
+  usecase "Visualizar carrinho\ne total (RF-07)" as UC_CAR
+  usecase "Finalizar pedido\n(RF-08)" as UC_FIN
+  usecase "Consultar histórico\ne status (RF-09)" as UC_HIS
+  usecase "Cancelar pedido\n(RF-10)" as UC_CANC
+
+  usecase "Validar estoque\n(RN-02)" as UC_EST
+  usecase "Calcular total\nno servidor (RF-17)" as UC_TOT
+  usecase "Efetuar pagamento\nsimulado" as UC_PAG
+  usecase "Devolver estoque\n(RN-08)" as UC_DEV
+
+  usecase "Cadastrar produto\n(RF-12)" as UC_PCAD
+  usecase "Editar produto\n(RF-13)" as UC_PED
+  usecase "Remover produto\n(RF-14)" as UC_PREM
+  usecase "Inativar produto" as UC_PINA
+  usecase "Controlar estoque\n(RF-15)" as UC_PEST
+  usecase "Listar pedidos\nrecebidos (RF-16)" as UC_PLIS
+  usecase "Atualizar status\ndo pedido (RF-18)" as UC_PSTA
+  usecase "Validar transição\nde status (RN-07)" as UC_TRANS
+}
+
+U --> UC_LOGIN
+
+C --> UC_CAD
+C --> UC_CAT
+C --> UC_DET
+C --> UC_ADD
+C --> UC_ALT
+C --> UC_CAR
+C --> UC_FIN
+C --> UC_HIS
+C --> UC_CANC
+
+A --> UC_PCAD
+A --> UC_PED
+A --> UC_PREM
+A --> UC_PEST
+A --> UC_PLIS
+A --> UC_PSTA
+
+UC_ADD ..> UC_EST : <<include>>
+UC_ALT ..> UC_EST : <<include>>
+UC_FIN ..> UC_EST : <<include>>
+UC_FIN ..> UC_TOT : <<include>>
+UC_FIN ..> UC_PAG : <<include>>
+UC_CANC ..> UC_DEV : <<include>>
+UC_PSTA ..> UC_TRANS : <<include>>
+UC_PINA ..> UC_PREM : <<extend>>\n[produto vinculado\na pedidos]
+@enduml
+```
+
+//Classes
+
+```mermaid
+classDiagram
+  direction LR
+
+  class Usuario {
+    -int id
+    -string nome
+    -string email
+    -string senhaHash
+    -Perfil perfil
+    +validarSenha(string senha) bool
+  }
+  class Produto {
+    -int id
+    -string nome
+    -string descricao
+    -decimal preco
+    -int estoque
+    -bool ativo
+    +temEstoque(int qtd) bool
+    +decrementarEstoque(int qtd) void
+    +devolverEstoque(int qtd) void
+    +inativar() void
+  }
+  class Carrinho {
+    +adicionarItem(Produto p, int qtd) void
+    +alterarQuantidade(Produto p, int qtd) void
+    +removerItem(Produto p) void
+    +calcularTotal() decimal
+  }
+  class ItemCarrinho {
+    -int quantidade
+    +subtotal() decimal
+  }
+  class Pedido {
+    -int id
+    -date dataCriacao
+    -StatusPedido status
+    -decimal total
+    +calcularTotal() decimal
+    +cancelar() void
+    +atualizarStatus(StatusPedido novo) void
+  }
+  class ItemPedido {
+    -int quantidade
+    -decimal precoUnitario
+    +subtotal() decimal
+  }
+  class Perfil {
+    <<enumeration>>
+    CLIENTE
+    ADMINISTRADOR
+  }
+  class StatusPedido {
+    <<enumeration>>
+    PENDENTE
+    CONFIRMADO
+    ENTREGUE
+    CANCELADO
+  }
+
+  Usuario "1" --> "0..*" Pedido : realiza
+  Usuario "1" --> "0..1" Carrinho : possui
+  Carrinho "1" *-- "0..*" ItemCarrinho : contém
+  Pedido "1" *-- "1..*" ItemPedido : contém
+  ItemCarrinho "0..*" --> "1" Produto : refere-se a
+  ItemPedido "0..*" --> "1" Produto : refere-se a
+  Usuario --> Perfil
+  Pedido --> StatusPedido
+```
+
+
 
 ## 11. Anexos e Referências
 
