@@ -733,7 +733,7 @@ UC_CANC ..> UC_DEV : <<include>>
 UC_PSTA ..> UC_TRANS : <<include>>
 UC_PINA ..> UC_PREM : <<extend>>\n[produto vinculado\na pedidos]
 @enduml
-```
+````
 
 //Classes
 
